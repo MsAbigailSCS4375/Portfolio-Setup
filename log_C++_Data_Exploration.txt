@@ -1,0 +1,9 @@
+Fri Feb 03 15:20:20 2023
+
+RUNNING CS4375_DataExploration - main.cpp...
+	Attempting to open Boston.csv
+		Boston.csv was opened successfully.
+	Reading Boston.csv
+		Boston.csv was read successfully.
+	Closing file Boston.csv.
+FINISHED CS4375_DataExploration - main.cpp. Terminating.
