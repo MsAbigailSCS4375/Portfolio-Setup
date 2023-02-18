@@ -1,0 +1,235 @@
+---
+title: "Classification"
+output: html_notebook
+---
+
+# Classification Notebook
+
+
+Importing the libraries
+```{r}
+library(vioplot)
+library(e1071)
+library(caret)
+library(ggplot2)
+library(dplyr)
+library(broom)
+library(ggpubr)
+```
+
+
+
+
+# Loading Data
+
+## Read in the Dataset
+
+Retrieved the data from a kaggle database measuring Heart Arrhythmia in patients
+```{r}
+data <- read.csv("C:/Users/Eric/repo/CS-4375-Machine-Learning/Component-2/INCART 2-lead Arrhythmia Database.csv", na.strings="NA", header=TRUE)
+```
+
+
+Make a copy of the data to reduce re-reading the data set
+```{r}
+df <- data
+```
+
+Printing a basic the Summary of the data set
+```{r}
+summary(df)
+```
+
+
+
+# Filtering the Data
+
+## Remove the unnecessary columns
+
+We remove the record column since we won't need to differentiate patients
+```{r}
+df <- df[, !names(df) %in% c("record")]
+```
+
+
+Looking at the number and type of different arrhythmia we can see that most people
+  have a normal rhythm, but there is a few people with abnormal rhythms.
+```{r}
+uniqueTypes <- unique(df$type)
+for (type in uniqueTypes) {
+  print(paste("The number of rows of type ", type, " is ", nrow(df[df$type == type, ])))
+}
+
+```
+
+Remove rows of type SVEB, F, and type Q since there is not enough data to support classifying these types. Want to focus on the difference between normal and VEB
+```{r}
+df <- df[df$type == "N" | df$type == "VEB",]
+summary(df)
+```
+
+
+Factor each of the 2 types to ensure that each has its own value. This will help us ensure that naive bayes recognizes each of these as a number instead a string
+```{r}
+df$type <- factor(df$type, levels=c("N", "VEB"))
+contrasts(df$type)
+```
+
+# Using the Data
+
+## Splitting the data into train/test
+
+We split the data into 2 separate data frames depending on a random sample. 80 percent of the data is going to training and the other 20 percent is going to testing and evaluation.
+```{r}
+dt = sort(sample(nrow(df), nrow(df)*.8))
+train <- df[dt,]
+test <- df[-dt,]
+```
+
+## Data Exploration Functions
+
+Data exploration Function 1 - We can see that there are no NA's inside of the data frame. This is good for us since all data 
+  can be used inside our linear models and we don't need to worry about replacing any values. For the dim function we can 
+  see the number of observation times the number of columns
+```{r}
+sum(is.na(train))
+dim(train)
+```
+
+Data Exploration Function 2 - gets the coefficients of all numerical values in data and looks for the those variables
+in the upper diagonal that are most highly correlated. From this table we can see that we
+have 6 variables variables that have a coefficient of at least .9 and many more with .8. Using this information we can
+see several opportunities to look for correlations among variables
+```{r}
+cor <- cor(df[2:33], use="complete")
+cor[cor < .5 & cor > -.5] <- 0
+cor[upper.tri(cor, diag = TRUE)] <- 0
+table(cor)
+```
+
+Data Exploration Function 3 - Using the graph on the left we can see there is a very strong imbalance between
+  the number of N's and VEB's. Using the graph on the right we can see that even among highly correlated values
+  we may not be able to differentiate between the two types of rhythms. The bottom graph is another example with 
+  semi-strong correlation
+```{r}
+par(mfrow=c(2,2))
+
+counts <- table(train$type)
+barplot(counts, xlab="Heart Rhythm", ylab="Frequency", col=c("red","blue","green"))
+
+plot(train$X1_qrs_morph1, train$X1_qrs_morph2, pch=21, cex=0.75, bg=c("red", "blue", "green")[unclass(df$type)],)
+
+plot(train$X0_qPeak, train$X1_qrs_morph1, pch=21, cex=0.75, bg=c("red", "blue", "green")[unclass(df$type)])
+```
+
+Some more basic plot functions for other varied visual confirmation of some correlation.
+```{r}
+plot(train$type, train$X0_rPeak)
+plot(train$type, train$X0_sPeak)
+plot(train$type, train$X1_qrs_interval)
+plot(train$type, train$X0_qrs_morph2)
+```
+
+## Data Exploration Function 5
+
+cov(train$X1_rPeak, train$X0_rPeak) - shows not a lot of similarity between different X values even in a single patient
+cov(train$X0_qrs_interval, train$X0_qPeak) - shows high covariance between the intervals length and peaks
+```{r}
+cov(train$X1_rPeak, train$X0_rPeak)
+cov(train$X0_qrs_interval, train$X0_qPeak)
+```
+
+# Informative Graphs
+
+Several plots that show the relationship between different variables while also showing the different circles depending
+  on which type of rhythm the patient had
+```{r}
+plot(train$X1_qrs_morph1, train$X1_qrs_morph2, pch=21, cex=0.75, bg=c("red", "blue")[unclass(df$type)])
+plot(train$X1_qrs_interval, train$X1_qrs_morph2, pch=21, cex=0.75, bg=c("red", "blue")[unclass(df$type)])
+plot(train$X1_qrs_interval, train$X1_qt_interval, pch=21, cex=0.75, bg=c("red", "blue")[unclass(df$type)])
+```
+
+
+## Making Models
+
+```{r}
+func <- function(df){
+  dt <- sort(sample(nrow(df), nrow(df)*.8))
+  train <- df[dt,]
+  test <- df[-dt,]
+  glm1 <- glm(type~X0_qPeak, data=train, family="binomial")
+  probs <- predict(glm1, newdata=test)
+  pred <- ifelse(probs>0.5, 1, 0)
+  acc <- mean(pred==test$type)
+  print(paste("accuracy = ", acc))
+  table(pred, test$type)
+}
+
+```
+
+
+Makes a logistical model that compares the peak to the interval plus the type of rhythm the patient had. We first split the data into its different classes and then run it through the function for the logistical creation. It then evaluates the data on the test data and shows that the model is perfectly seperable into the two types. Even giving a warning of not converging. This means that the classes were easily separable given the predictor of X0_qPeak.
+```{r}
+n_data <- df[df$type == "N",]
+veb_data <- df[df$type == "VEB",]
+
+func(n_data)
+func(veb_data)
+
+```
+
+Makes a naive bayes model that attempts to find the type of rhythm depending on the peak value of a patient. Uses the 
+  training data while training.
+Prints a basic summary of the naive bayes model
+  Naive Byes - shows a table with the conditional probabilities of a certain rhythm happening. We can see that in general
+    once X gets below a certain value there is a much higher chance of the rhythm being VEB
+```{r}
+nb1 <- naiveBayes(type~X0_qPeak, data=train)
+nb1
+```
+
+
+## Predicting on train data for Naive Bayes
+
+Uses the predict module to predict for naive Bayes module. This predict uses the test
+  data set to test how effective our model was in predicting the correct result
+```{r}
+
+## Predicting the linear model
+resultNaiveBayes <- predict(nb1, newdata = test, type="class")
+```
+
+## Evaluate on test data for Naive Bayes
+
+
+The prediction on the naive bayes algorithm shows that we got an accuracy of about 88 percent. The low kappa value shows
+  that there is a high prevalence oh the number of N's. If we were to do this again we would want to ensure that the
+  model took more of VEB into consideration. This is further shown with a high sensitivity of 98%. We have a high positive
+  predicted value which makes sense since it predicts the class with the highest number most of the time.
+```{r}
+mean(resultNaiveBayes==test$type)
+confusionMatrix(resultNaiveBayes, test$type)
+```
+
+### Comparing Naive Bayes to Logistival Regression
+For both models they output a classification result saying which class it thinks the specific class is in. In this case Logistical Regression won out because it found a line that perfectly separated the two classes giving a 100 percent success rate in finding the difference between Normal rhythms and VEB rhythms.In addition we had a data set with an extremely high number of observations meaning we logistical models would have done better even if there wasn't a perfect dividing line between the classes.
+
+# Strengths and Weaknesses
+
+## Strengths and Weaknesses of Naive Bayes
+  The strength of Naive Bayes lies in its ability to quickly train on rather small data sets and since it the output of the model is just a single factor it is easy for us to understand the results of the given data. The bias of a given model is also much higher given that the eventual probabilities of the model are based off the population sizes of the the classes in the data. A general weakness is that there is little growth in the abilities of model as data size increases. This is due to the fact that even as more data comes in if the probabilities are the same for the data then the eventual result of the model will not end up changing.
+  
+## Strengths and Weaknesses of Logistic Regression
+  The strength of Logistic Regression is great for data that is easily split by a line. For example if there is a data point that easily divides two or more classes. Then it defines being above that line as one class and below as another. Additionally it is very fast since it is just forming a linear model that splits the two classes. Additionally gives a nice output of predicted classes. The main weakness is that it really struggles if there is no clear boundary between any two predictors. Have to find a predictor that splits the two well down the middle or use a different model
+
+
+
+
+
+
+
+
+
+
+
+
