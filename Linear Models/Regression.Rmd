@@ -1,0 +1,556 @@
+---
+title: "Regression"
+authors: Eric Shields (), Abigail Smith (ARS190011)
+date: "02/18/2023"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+professor: Dr. Mazidi
+requirements: Please update the path to read in DelayedFlights.csv.
+summary: null
+course: CS 4375.004
+---
+# Assignment: Linear Models
+
+## Reading and Cleansing Data
+```{r}
+# Reading in DelayedFlights.csv, filling in all NA with "NA", and retaining column names
+df <- read.csv("", na.strings="NA", header=TRUE)  # Please update the file path for DelayedFlights.csv
+
+head(df)          # Exploring top observations
+str(df)           # Exploring the structure of the data frame
+print("-----")    # Visual break between outputs
+summary(df)       # Exploring the summary of the data frame (min, max, mean, etc.)
+```
+The data frame holding the data from DelayedFlights.csv has a variety of characteristics that are of interest.
+
+Majority of the columns from the data frame are quantitative with only a few columns being qualitative (UniqueCarrier, TailNum, Origin, Dest, and CancellationCode). For linear regression, we are interested in the quantitative columns.
+
+Before starting linear regression, the NA entries in the data frame must be addressed. In the following section, the NA entries will be reviewed and accounted for.
+
+### Exploring NA Entries
+From the summary above, we can see there are multiple columns with NA entries.
+
+First, columns CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, and LateAircraftDelay will be reviewed since each of these columns have the same number of NA entries (689270).
+```{r}
+print(paste("Count of all entries where flight was cancelled (i.e. column Cancelled == 1): ",sum(df$Cancelled == 1)))
+print(paste("Count of all observations with NA in CarrierDelay and Cancelled == 1: ", sum(is.na(df$CarrierDelay) & df$Cancelled == 1)))
+print(paste("Count of all observations with NA in WeatherDelay and Cancelled == 1: ", 
+sum(is.na(df$WeatherDelay) & df$Cancelled == 1)))
+print(paste("Count of all observations with NA in NASDelay and Cancelled == 1: ",
+sum(is.na(df$NASDelay) & df$Cancelled == 1)))
+print(paste("Count of all observations with NA in SecurityDelay and Cancelled == 1: ",
+sum(is.na(df$SecurityDelay ) & df$Cancelled == 1)))
+print(paste("Count of all observations with NA in LateAircraftDelay and Cancelled == 1: ", sum(is.na(df$LateAircraftDelay) & df$Cancelled == 1)))
+```
+As seen above, in all instances where a flight was cancelled, there is an NA in CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, and LateAircraftDelay.
+
+To fix these NAs, we will replace these NAs with 0. This is because columns CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, and LateAircraftDelay are measurements of time, and when a flight is cancelled, it is reasonable to assert that there was not a delay on the flight.
+```{r}
+# Replacing all instances where the flight was cancelled and there is an NA for each of the delay columns with 0.
+df[df$Cancelled == 1 & is.na(df$CarrierDelay),]$CarrierDelay <- 0
+df[df$Cancelled == 1 & is.na(df$WeatherDelay),]$WeatherDelay <- 0
+df[df$Cancelled == 1 & is.na(df$NASDelay),]$NASDelay <- 0
+df[df$Cancelled == 1 & is.na(df$SecurityDelay),]$SecurityDelay <- 0
+df[df$Cancelled == 1 & is.na(df$LateAircraftDelay),]$LateAircraftDelay <- 0
+```
+
+We can see the replacement was successful:
+```{r}
+print(paste("Count of all entries where flight was cancelled (i.e. column Cancelled == 1): ",sum(df$Cancelled == 1)))
+print(paste("Count of all observations with NA in CarrierDelay and Cancelled == 1: ", sum(is.na(df$CarrierDelay) & df$Cancelled == 1)))
+print(paste("Count of all observations with NA in WeatherDelay and Cancelled == 1: ", 
+sum(is.na(df$WeatherDelay) & df$Cancelled == 1)))
+print(paste("Count of all observations with NA in NASDelay and Cancelled == 1: ",
+sum(is.na(df$NASDelay) & df$Cancelled == 1)))
+print(paste("Count of all observations with NA in SecurityDelay and Cancelled == 1: ",
+sum(is.na(df$SecurityDelay ) & df$Cancelled == 1)))
+print(paste("Count of all observations with NA in LateAircraftDelay and Cancelled == 1: ", sum(is.na(df$LateAircraftDelay) & df$Cancelled == 1)))
+
+summary(df)
+```
+From the summary above, we can see there are still NA entries.
+
+The columns CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, and LateAircraftDelay will continue to be reviewed since they still have the same number of NA entries remaining (688637).
+```{r}
+print(paste("Count of all entries where CarrierDelay is NA: ",
+sum(is.na(df$CarrierDelay))))
+print(paste("Count of all entries where WeatherDelay is NA: ",
+sum(is.na(df$WeatherDelay))))
+print(paste("Count of all entries where NASDelay is NA: ",
+sum(is.na(df$NASDelay))))
+print(paste("Count of all entries where SecurityDelay is NA: ",
+sum(is.na(df$SecurityDelay))))
+print(paste("Count of all entries where LateAircraftDelay  is NA: ",
+sum(is.na(df$LateAircraftDelay))))
+
+## Showing observations where CarrierDelay is NA and another observation when CarrierDelay is not NA
+df[is.na(df$CarrierDelay),]
+df[!is.na(df$CarrierDelay),]
+
+## Showing the sum of all observations where each of the five columns are NA
+print("Count of all observations where CarrierDelay, NASDelay, WeatherDelay, SecurityDelay, and LateAircraftDelay are EACH NA: ")
+print(sum(is.na(df$CarrierDelay & is.na(df$NASDelay) & is.na(df$WeatherDelay) & is.na(df$SecurityDelay)) & is.na(df$LateAircraftDelay)))
+```
+From above, we can see that whenever there is an NA in any of the five columns -- CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, or LateAircraftDelay -- there is an NA in the remaining four columns. This is understandable since if there was not a delay on a flight, none of the five columns would need to be filled in.
+
+To fix this, we will replace all NA entries for the five columns with 0, meaning there was not a delay on any of the flights.
+```{r}
+df[is.na(df$CarrierDelay) & is.na(df$NASDelay) & is.na(df$WeatherDelay) & is.na(df$SecurityDelay) & is.na(df$LateAircraftDelay),]$CarrierDelay <- 0
+df[is.na(df$NASDelay) & is.na(df$WeatherDelay) & is.na(df$SecurityDelay) & is.na(df$LateAircraftDelay),]$NASDelay <- 0
+df[is.na(df$WeatherDelay) & is.na(df$SecurityDelay) & is.na(df$LateAircraftDelay),]$WeatherDelay <- 0
+df[is.na(df$SecurityDelay) & is.na(df$LateAircraftDelay),]$SecurityDelay <- 0
+df[is.na(df$LateAircraftDelay),]$LateAircraftDelay <- 0
+```
+
+We can see the replacement was successful:
+```{r}
+print(paste("Count of all entries where CarrierDelay is NA: ",
+sum(is.na(df$CarrierDelay))))
+print(paste("Count of all entries where WeatherDelay is NA: ",
+sum(is.na(df$WeatherDelay))))
+print(paste("Count of all entries where NASDelay is NA: ",
+sum(is.na(df$NASDelay))))
+print(paste("Count of all entries where SecurityDelay is NA: ",
+sum(is.na(df$SecurityDelay))))
+print(paste("Count of all entries where LateAircraftDelay  is NA: ",
+sum(is.na(df$LateAircraftDelay))))
+print(paste("Count of all observations where CarrierDelay, NASDelay, WeatherDelay, SecurityDelay, and LateAircraftDelay are EACH NA: ",
+sum(is.na(df$CarrierDelay & is.na(df$NASDelay) & is.na(df$WeatherDelay) & is.na(df$SecurityDelay)) & is.na(df$LateAircraftDelay))))
+
+summary(df)
+```
+We can see from the above summary that there are no longer NA entries in CarrierDelay, WeatherDelay, NASDelay, SecurityDelay, and LateAircraftDelay.
+
+The NA entries in columns AirTime and AirDelay will be reviewed next since they have the same number of NA entires (8387).
+```{r}
+print(paste("Count of all observations where the flight was diverted (Diverted == 1): ",
+sum(df$Diverted == 1)))
+print(paste("Count of all observations where AirTime is NA: ",
+sum(is.na(df$AirTime))))
+print(paste("Count of all observations where ArrDelay is NA: ",
+sum(is.na(df$ArrDelay))))
+print(paste("Count of all observations where the flight was diverted and AirTime is NA: ",
+sum(df$Diverted == 1 & is.na(df$AirTime))))
+print(paste("Count of all observations where the flight was diverted and ArrDelay is NA: ",
+sum(df$Diverted == 1 & is.na(df$ArrDelay))))
+```
+From the above output, we can see that any time a flight was diverted, there are NA entries in AirTime and ArrDelay. This is reasonable, since if the flight was diverted, the flight time and arrival delay may not have been input.
+
+To fix this, we will replace these NAs with 0 to mean there was not air time nor an arrival delay for delayed flights.
+```{r}
+df[df$Diverted == 1 & is.na(df$AirTime) & is.na(df$ArrDelay),]$AirTime <- 0
+df[df$Diverted == 1 & is.na(df$ArrDelay),]$ArrDelay <- 0
+```
+
+We can see the replacement was successful:
+```{r}
+print(paste("Count of all observations where the flight was diverted (Diverted == 1): ",
+sum(df$Diverted == 1)))
+print(paste("Count of all observations where AirTime is NA: ",
+sum(is.na(df$AirTime))))
+print(paste("Count of all observations where ArrDelay is NA: ",
+sum(is.na(df$ArrDelay))))
+print(paste("Count of all observations where the flight was diverted and AirTime is NA: ",
+sum(df$Diverted == 1 & is.na(df$AirTime))))
+print(paste("Count of all observations where the flight was diverted and ArrDelay is NA: ",
+sum(df$Diverted == 1 & is.na(df$ArrDelay))))
+
+summary(df)
+```
+We can see there are still NA entries in AirTime and ArrDelay.
+
+```{r}
+print(paste("Count of NA entries in AirTime: ",
+sum(is.na(df$AirTime))))
+print(paste("Count of NA entries in ArrDelay: ",
+sum(is.na(df$ArrDelay))))
+print(paste("Count of flights Cancelled: ",
+sum(df$Cancelled == 1)))
+print(paste("Count of NA entries in AirTime and ArrDelay when the flight was cancelled: ",
+sum(is.na(df$AirTime) & is.na(df$ArrDelay) & df$Cancelled == 1)))
+```
+From the above, we can see that any time a flight was cancelled, there is an NA entry for AirTime and ArrDelay.
+
+To fix this, we will replace these NAs with 0 to represent that there was not air time nor an arrival delay for cancelled flights.
+```{r}
+df[df$Cancelled == 1 & is.na(df$AirTime) & is.na(df$ArrDelay),]$AirTime <- 0
+df[df$Cancelled == 1 & is.na(df$ArrDelay),]$ArrDelay <- 0
+```
+
+We can see the replacement was successful:
+```{r}
+print(paste("Count of NA entries in AirTime: ",
+sum(is.na(df$AirTime))))
+print(paste("Count of NA entries in ArrDelay: ",
+sum(is.na(df$ArrDelay))))
+print(paste("Count of flights Cancelled: ",
+sum(df$Cancelled == 1)))
+print(paste("Count of NA entries in AirTime and ArrDelay when the flight was cancelled: ",
+sum(is.na(df$AirTime) & is.na(df$ArrDelay) & df$Cancelled == 1)))
+
+summary(df)
+```
+We can see there are no longer NA entries in AirTime and ArrDelay.
+
+The NA entries in columns ArrTime and TaxiIn will now be reviewed since they have the same number of NAs (7110)
+```{r}
+print(paste("Count of NA entries in ArrTime: ",
+sum(is.na(df$ArrTime))))
+print(paste("Count of NA entries in TaxiIn: ",
+sum(is.na(df$TaxiIn))))
+print(paste("Count of flights diverted: ",
+sum(df$Diverted == 1)))
+print(paste("Count of flights cancelled: ",
+sum(df$Cancelled == 1)))
+print(paste("Count of observations where both ArrTime and TaxiIn are NA: ",
+sum(is.na(df$ArrTime) & is.na(df$TaxiIn))))
+print(paste("Count of observations where both ArrTime and TaxiIn are NA and the flight was diverted: ",
+sum(is.na(df$ArrTime) & is.na(df$TaxiIn) & df$Diverted == 1)))
+print(paste("Count of observations where both ArrTime and TaxiIn are NA and the flight was cancelled: ",
+sum(is.na(df$ArrTime) & is.na(df$TaxiIn) & df$Cancelled == 1)))
+```
+We can see that in every instance where the flight was cancelled, ArrTime and TaxiIn are NA. 
+
+Since we cannot replace entries in ArrTime since ArrTime represents military time (and replacing with 0 would represent midnight), we will remove these rows.
+```{r}
+## Removing all rows where cancelled == 1 and ArrTime is NA
+df <- df[!(df$Cancelled == 1 & is.na(df$ArrTime)),]
+```
+
+We can see the removal was successful:
+```{r}
+print(paste("Count of NA entries in ArrTime: ",
+sum(is.na(df$ArrTime))))
+print(paste("Count of NA entries in TaxiIn: ",
+sum(is.na(df$TaxiIn))))
+print(paste("Count of flights diverted: ",
+sum(df$Diverted == 1)))
+print(paste("Count of flights cancelled: ",
+sum(df$Cancelled == 1)))
+print(paste("Count of observations where both ArrTime and TaxiIn are NA: ",
+sum(is.na(df$ArrTime) & is.na(df$TaxiIn))))
+print(paste("Count of observations where both ArrTime and TaxiIn are NA and the flight was diverted: ",
+sum(is.na(df$ArrTime) & is.na(df$TaxiIn) & df$Diverted == 1)))
+print(paste("Count of observations where both ArrTime and TaxiIn are NA and the flight was cancelled: ",
+sum(is.na(df$ArrTime) & is.na(df$TaxiIn) & df$Cancelled == 1)))
+
+summary(df)
+```
+We can see that whenever the flight was diverted, there is an NA in ArrTime and TaxiIn. 
+
+To fix this, we will remove these rows for the same reason as before (to replace ArrTime with a numeric value would create an inaccuracy).
+```{r}
+df <- df[!(df$Diverted == 1 & is.na(df$ArrTime)),]
+```
+
+We can see the removal was successful:
+```{r}
+print(paste("Count of NA entries in ArrTime: ",
+sum(is.na(df$ArrTime))))
+print(paste("Count of NA entries in TaxiIn: ",
+sum(is.na(df$TaxiIn))))
+print(paste("Count of flights diverted: ",
+sum(df$Diverted == 1)))
+print(paste("Count of flights cancelled: ",
+sum(df$Cancelled == 1)))
+print(paste("Count of observations where both ArrTime and TaxiIn are NA: ",
+sum(is.na(df$ArrTime) & is.na(df$TaxiIn))))
+print(paste("Count of observations where both ArrTime and TaxiIn are NA and the flight was diverted: ",
+sum(is.na(df$ArrTime) & is.na(df$TaxiIn) & df$Diverted == 1)))
+print(paste("Count of observations where both ArrTime and TaxiIn are NA and the flight was cancelled: ",
+sum(is.na(df$ArrTime) & is.na(df$TaxiIn) & df$Cancelled == 1)))
+
+summary(df)
+```
+We can see there are no longer NA entries in ArrTime and TaxiIn.
+
+The NA entries in ActualElapsedTime will be reviewed since it is the only remaining column with NA. 
+```{r}
+print(paste("Count of NA entries in ActualElapsedTime: ",
+sum(is.na(df$ActualElapsedTime))))
+print(paste("Count of flights diverted: ",
+sum(df$Diverted == 1)))
+print(paste("Count of flights cancelled: ",
+sum(df$Cancelled == 1)))
+print(paste("Count of observations where ActualElapsedTime NA and the flight was diverted: ",
+sum(is.na(df$ActualElapsedTime) & df$Diverted == 1)))
+print(paste("Count of observations where ActualElapsedTime NA and the flight was cancelled: ",
+sum(is.na(df$ActualElapsedTime) & df$Cancelled == 1)))
+
+df[is.na(df$ActualElapsedTime),]
+```
+We can see that whenever a flight was diverted, there are NA entries in ActualElapsedTime. This makes sense since if the flight was diverted, data may not have needed to be recorded for ActualElapsedTime.
+
+To fix, we will replace these NA with 0 to represent there was no elapsed time when the flight was diverted.
+```{r}
+df[is.na(df$ActualElapsedTime) & df$Diverted == 1,] <- 0
+```
+
+We can see the replacement was successful:
+```{r}
+print(paste("Count of NA entries in ActualElapsedTime: ",
+sum(is.na(df$ActualElapsedTime))))
+print(paste("Count of flights diverted: ",
+sum(df$Diverted == 1)))
+print(paste("Count of flights cancelled: ",
+sum(df$Cancelled == 1)))
+print(paste("Count of observations where ActualElapsedTime NA and the flight was diverted: ",
+sum(is.na(df$ActualElapsedTime) & df$Diverted == 1)))
+print(paste("Count of observations where ActualElapsedTime NA and the flight was cancelled: ",
+sum(is.na(df$ActualElapsedTime) & df$Cancelled == 1)))
+
+summary(df)
+```
+We can see there are no longer NA entries!
+
+We can now begin linear regression.
+
+## Creating Linear Model
+Linear regression depends on quantitative data rather than qualitative data. As seen in the output below, there are various qualitative columns (UniqueCarrier, TailNum, Origin, Dest, and CancellationCode) in our data frame.
+```{r}
+str(df)
+```
+
+We will remove these qualitative columns since they will not be of use for linear regression.
+```{r}
+df <- df[,!names(df) %in% c("UniqueCarrier", "TailNum", "Origin", "Dest", "CancellationCode")]
+```
+
+### a. Dividing into 80/20 Train/Test
+```{r}
+dt = sort(sample(nrow(df), nrow(df)*.8, replace=FALSE))
+train <- df[dt,]
+test <- df[-dt,]
+```
+
+### b. 1/5 Data Exploration on Training Data - Correlation
+Correlation will be the first data exploration. Correlation shows how well two columns correlate to one another and provide a basis for identifying potential relationships. Correlation ranges [-1, 1] where the closer to -1, more negative the relationship and the closer to 1, the more positive the relationship. The closer to 0, the more there is not a relationship.
+```{r}
+print(paste("The correlation between Distance and ActualElapsedTime: ",
+cor(train$Distance, train$ActualElapsedTime)))
+print(paste("The correlation between Distance and DeptTime: ",
+cor(train$Distance, train$DepTime)))
+print(paste("The correlation between Distance and AirTime: ",
+cor(train$Distance, train$AirTime)))
+print(paste("The correlation between Distance and TaxiIn: ",
+cor(train$Distance, train$TaxiIn)))
+print(paste("The correlation between Distance and DayOfWeek: ",
+cor(train$Distance, train$DayOfWeek)))
+print(paste("The correlation between Actual Elapsed Time and AirTime: ",
+cor(train$ActualElapsedTime, train$AirTime)))
+```
+As seen above...
+  1. Distance and ActualElapsedTime have a near perfect positive relationship
+  2. Distance and DeptTime have a barely negative relationship
+  3. Distance and AirTime have a near perfect positive relationship
+  4. Distance and DayOfWeek have a barely positive relationship
+  5. ActualElapsedTime and AirTime have a near perfect positive relationship.
+
+### b. 2/5 Data Exploration on Training Data - Covariance
+Covariance is correlation, but its range is [-inf., inf.]. Covariance measures how changes in one column are associated with changes in a another column.
+```{r}
+print(paste("Covariance of distance and actual elapsed time: ",
+cov(train$Distance, train$ActualElapsedTime, method="pearson")))
+print(paste("Covariance of ditance and departure time: ",
+cov(train$Distance, train$DepTime, method="pearson")))
+print(paste("Covariance of distance and air time: ",
+cov(train$Distance, train$AirTime, method="pearson")))
+print(paste("Covariance of distance and taxi in: ",
+cov(train$Distance, train$TaxiIn, method="pearson")))
+print(paste("Covariance of distance and day of the week: ",
+cov(train$Distance, train$DayOfWeek, method="pearson")))
+print(paste("Covariance of actual elapsed time and air time: ",
+cov(train$ActualElapsedTime, train$AirTime, method="pearson")))
+```
+Compared to correlation, covariance is much more difficult to read and quickly understand how different columns impact one another.
+ 
+### b. 3/5 Data Exploration on Training Data - Dimension
+```{r}
+dim(train)
+```
+From calling dimension, we can see there are 1543718 rows and 25 columns. This is more than sufficient for linear regression.
+
+### b. 4/5 Data Exploration on Training Data - Structure
+```{r}
+str(train)
+```
+As seen before and above, our training set consists of only quantitative data. This is ideal for linear regression.
+
+### b. 5/5 Data Exploration on Training Data - Head
+```{r}
+head(train)
+```
+From visual inspection of the output above, we can see that all columns have reasonable inputs. 
+
+### b. Additional Data Exploration on Training Data - Mean, Median, Range, 
+```{r}
+print(paste("Mean of distance: ", mean(train$Distance)))
+print(paste("Median of distance: ", median(train$Distance)))
+print(paste("Range of distance: ", max(train$Distance) - min(train$Distance)))
+print("Unique elements in column Year: ") 
+unique(train$Year)
+lm_train <- lm(train$Distance~train$ActualElapsedTime, data=train)
+```
+
+### c. 1/2 Informative Graphs on Training Data
+
+```{r}
+plot(train$Distance)
+plot(train$DepTime)
+plot(train$CRSDepTime)
+plot(train$ArrTime)
+plot(train$CRSArrTime)
+plot(train$FlightNum)
+plot(train$ActualElapsedTime)
+plot(train$CRSElapsedTime)
+plot(train$AirTime)
+plot(train$ArrDelay)
+plot(train$DepDelay)
+plot(train$Distance)
+plot(train$TaxiIn)
+plot(train$TaxiOut)
+plot(train$Cancelled)
+plot(train$Diverted)
+plot(train$CarrierDelay)
+plot(train$WeatherDelay)
+plot(train$NASDelay)
+plot(train$SecurityDelay)
+plot(train$LateAircraftDelay)
+```
+Each of the plots output above shows a visual representation of how each column is distrubuted by index. These graphs can be used to gain a quick understanding of how our data is distributed and identify any outliers.
+
+### c. 2/2 Informative Graphs on Training Data
+Here we will create a histogram to see the distribution for different distances traveled.
+```{r}
+hist(train$Distance, main="Histogram of Distance")
+hist(train$DayOfWeek, main="Histogram of Day of Week")
+hist(train$Month, main="Histogram of Month")
+hist(train$ArrTime, main="Histogram of Arrival Times")
+hist(train$DepTime, main="Histogram of Departure Times")
+```
+From these histograms, we can see how often the data fits into certain categories. From the histograms, we can see:
+  1. Histogram of Distance - We can see that majority of flights are below 3000
+  2. Histogram of day of week - we can see that the frequency for each day of the week is relatively even
+  3. Histogram of Month - We can see that the flight frequency for each month is relatively even
+  4. Histogram of Arrival Times - We can see that majority of the flights occurred after 5:00 AM
+  5. Histogram of Departure Times - We can see that the majority of flights arrived after 5:00 AM
+These histograms allow us to better understand how the data is distributed.
+
+### c. Additional Informational Graphs
+```{r}
+plot(train$Distance, train$ActualElapsedTime, xlab="Distance", ylab="Actual Elapsed Time")
+```
+
+
+### d. Building Simple Linear Regression Model (One Predictor) & Summary
+Now we will build a simple linear regression model (with one predictor) and output its summary.
+
+Here our one predictor is ActualElapsedTime.
+```{r}
+lm_train_simple <- lm(train$ActualElapsedTime~train$Distance, data=train)
+
+summary(lm_train_simple)
+```
+As seen above, the summary call provides a rich overview of our linear regression model and its fit.
+
+The first section we will look at is the coefficient section which indicates how well each coefficient modeled the true data.
+
+The estimated coefficient for actual elapsed time and the intercept are provided, along with standard error, t-value, and the p-value.
+
+The standard error provides an estimate of variation in the coefficient estimate and can be used to predict a confidence interval for the coefficient. The standard error is used for the hypothesis test on the coefficient, where the null hypothesis is that there is no relationship between the predictor variable and the target variable.
+
+We can see from our output that the standard error is very small, meaning there is little variation in the coefficient estimate.
+
+The standard error is used to calculate the t-value. The t-value measures the number of standard deviations the estimate coefficient is from 0. The distribution of the t-value has a bell shape which makes it easy to compute the probability of observing a t-value larger in absolute value than what was computed, if the null hypothesis were true.
+
+The p-value is used to determine if the null hypothesis can be rejected. The larger the data set, the more confidence can be taken from the p-value. From our data set, we can definitely have confidence in our p-value.
+
+The last section of the summary provides information on the residual standard error, the multiple r-squared, the adjusted r-squared, the f-statistics, and the p-value. Unlike the coefficient section, this section tells us how well the model as a whole fit the training data.
+
+The residual standard error is found from the residual sum of squares (we square them to correct for negative directions) and measures how off our model was from the data, the lack of fit of the model.
+
+The f-statistic takes into account all of the predictors to determine if they are significant predictors of Y. It provides evidence against the null hypothesis that the predictors are not really predictors.
+
+
+
+### e. Plotting the Residuals
+```{r}
+plot(lm_train_simple)
+```
+The output above shows the four residual plots. Each residual plot is meant to be used to aid in understanding and improving the regression model.
+
+  1. Residual vs. Fitted - This plot shows the residual (errors) with a red trend line. The more horizontal the red line, the less variation in the data that the model did not capture. Since the plot has a relatively horizontal line, we can confirm there is less variation. 
+  2. Normal Q-Q - This plot shows if the residuals are somewhat normally distributed (since there is a fairly straight diagonal line). The closer the data is to the line, the more normally distributed the data is. When the points are further away from the line, the model may need to be reviewed. 
+  3. Scale-Location - This plot shows if the data is homoscedastic (meaning "same variance). Since there is not a fairly straight line with points distributed equally around it, we can say the data is not homoscedastic. We can see that the red lined is curved since there is a cluster of data favoring the lower x-axis.
+  4. Residuals vs. Leverage - This plot indicates leverage points which are influencing the regression line (they may or may not be outliers). Cook's distance (the grey dashed line) shows the impact of removing points as the points outside of the dotted line have high influence.
+
+### f. Building a Multiple Linear Regression Model (Multiple Predictors), Summary, and Residuals Plot
+```{r}
+lm_train_multiple <- lm(train$ActualElapsedTime~train$Distance+train$ArrTime, data=train)
+
+summary(lm_train_multiple)
+
+plot(lm_train_multiple)
+```
+
+
+### g. Building a Third Linear Model (Different Combination of Predictors), Summary, and Residual Plot
+```{r}
+lm_train_third <- lm(train$ActualElapsedTime~train$CRSElapsedTime+train$Distance, data=train)
+
+summary(lm_train_third)
+
+plot(lm_train_third)
+```
+
+### h. Comparing the Results
+From the three models, the third model is the best. This can be seen from both the summary and the residual plots. Within the summary for each model, the residual standard error, multiple r-squared, and adjusted r-squared improve as we work toward the third model. The residual standard error measures the standard deviation of the residuals in a regression model, and the smaller the residual standard error is, the better. As we can see in the third model, the residual standard error is much smaller than the previous two models. Additionally, having a multiple-r squared and adjusted r-squared closer to 1 means that the third model can better explain any variance by its predictors. Since these three factors help in indicating how well a model works, we can see that the third model has the best evidence for being the best model. Beyond the summary, the third model is best from its residual plots. Compared to the previous models, the residual plots of the third model are more evenly distributed. As seen in the Residuals vs. Fitted plot, the data is much more evenly distrubuted for the first model and the red line is more horizontal, meaning the third model captures more variation than the previous models. Additionally, in the Normal Q-Q plot, the data points are placed more on the straight line, meaning the data points are fairly evenly distributed. Third, the Scale-Location plot for the third model shows a slightly more even distribution around the red line. Lastly, the Residual vs. Leverage plot for the third models shows a more clustered distribution. Each of these factors combined indicate the third model works best.
+
+### i. Predict and Evaluate by Correlation and MSE for the Three Models
+```{r}
+lm_third <- lm(test$ActualElapsedTime~test$Distance, data=test)
+pred <- predict(lm_third, newdata=test)
+correlation <- cor(pred, test$ActualElapsedTime)
+print(paste("Correlation: ", correlation))
+mse <- mean((pred - test$ActualElapsedTime)^2)
+print(paste("mse: ", mse))
+rmse <- sqrt(mse)
+print(paste("rmse: ", rmse))
+```
+As seen above, the correlation is 0.953202682068884, which is very good since it is close to 1. Correlation is used to evaluate how well different columns impact one another, and as discussed before, correlation is scaled on a [-1, 1] range where the close to -1, the more negative the relationship, and the closer to 1, the more positive the relationship (with closer to 0 meanng there does not exist a relationship). Since the correlation shown above is so close to 1, we can say there is a near perfect positive relationship.
+
+mse and rmse are used to quanitfy the amount of error. In isolation, the mse is difficult to interpret; however, as seen above, an rmse of 21.7881277992924 represents how off the test data was on average. This is relatively good rmse given the size of the data, but this, mse, and correlation will be improved slightly in the next section.
+
+```{r}
+lm_third <- lm(test$ActualElapsedTime~test$Distance+test$ArrTime, data=test)
+pred <- predict(lm_third, newdata=test)
+correlation <- cor(pred, test$ActualElapsedTime)
+print(paste("Correlation: ", correlation))
+mse <- mean((pred - test$ActualElapsedTime)^2)
+print(paste("mse: ", mse))
+rmse <- sqrt(mse)
+print(paste("rmse: ", rmse))
+```
+As seen above, the correlation is 0.953302230313854, which is very good since it is close to 1. Correlation is used to evaluate how well different columns impact one another, and as discussed before, correlation is scaled on a [-1, 1] range where the close to -1, the more negative the relationship, and the closer to 1, the more positive the relationship (with closer to 0 meanng there does not exist a relationship). Since the correlation shown above is so close to 1, we can say there is a near perfect positive relationship.
+
+mse and rmse are used to quanitfy the amount of error. In isolation, the mse is difficult to interpret; however, as seen above, an rmse of 21.7654960150852 represents how off the test data was on average. This is relatively good rmse given the size of the data, but this, mse, and correlation will be improved in the next section.
+
+The first two models have very similar correlation, mse, and rmse. This is understandable given how similar the summary and residual plots for these two models were. Both the first and second model had a variety of similarities that placed them into similar categories for how well they could be used to represent a well-rounded linear regression. In contrast, we can see below that the third model, which had a different summary and set of residual plots to the first two models, had very different correlation, mse, and rmse. This is because the third model showed various signs of better representing the data.
+
+```{r}
+lm_third <- lm(test$ActualElapsedTime~test$CRSElapsedTime+test$Distance, data=test)
+pred <- predict(lm_third, newdata=test)
+correlation <- cor(pred, test$ActualElapsedTime)
+print(paste("Correlation: ", correlation))
+mse <- mean((pred - test$ActualElapsedTime)^2)
+print(paste("mse: ", mse))
+rmse <- sqrt(mse)
+print(paste("rmse: ", rmse))
+```
+As seen above, the correlation is 0.971424643867911, which is very good since it is close to 1. Correlation is used to evaluate how well different columns impact one another, and as discussed before, correlation is scaled on a [-1, 1] range where the closer to -1, the more negative the relationship, and the closer to 1, the more positive the relationship (with closer to 0 meaning there does not exist a relationship). Since the correlation shown above is so close to 1, we can say there is a near perfect positive relationship.
+
+mse and rmse are used to quantify the amount of error. In isolaion, the mse is difficult to interpret; however, as seen above, an rmse of 17.1049454210921 represents how off the test data was on average. This is a relatively good sized rmse given the size of the data.
+
+We can see that the correlation, mse, and rmse improved with the third model. As we can see in the three summaries, as we created new linear regression models, the residual standard error, multiple r-squared, and intercept improved overall.  
