@@ -1,0 +1,51 @@
+Sat Mar 04 07:36:20 2023
+
+Count of total passengers: 1046
+	Male passengers: 658
+	Female passengers: 388
+Percentages of total passengers:
+	% of male passengers: 62.9063
+	% of female passengers: 37.0937
+Count of passengers (from train subset): 800
+	Male passengers: 510
+	Female passengers: 290
+Percentages of passengers (from train subset):
+	% of male passengers: 63.75
+	% of female passengers: 36.25
+Exploring count of survived vs died passengers based on sex (from train subset):
+	Count of male passengers that survived: 100
+	Count of male passengers that died: 410
+	Count of female passengers that survived: 212
+	Count of female passengers that died: 78
+
+From train subset:
+Odds of...
+	female and survived: 2.71795
+	female and died: 0.367925
+	male and survived: 0.243902
+	male and died: 4.1
+Log odds of...
+	female and survived: 0.999877
+	female and died: -0.999877
+	male and survived: -1.41099
+	male and died: 1.41099
+Probability of...
+	female and survived: 0.731034
+	female and died: 0.268966
+	male and survived: 0.196078
+	male and died: 0.803922
+Finding components for logistic function:
+	w0 = 0.999877
+	w1 = -2.41086
+	50 iterations
+		w0 = 0.168515
+		w1 = 0.106719
+	500 iterations
+		w0 = 0.99987
+		w1 = -2.41085
+	5000 iterations
+		w0 = 0.999875
+		w1 = -2.41086
+	50000 iterations
+		w0 = 0.999875
+		w1 = -2.41086

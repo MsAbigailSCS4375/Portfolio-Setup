@@ -1,0 +1,9 @@
+Sat Mar 04 04:38:43 2023
+
+RUNNING CS4375_DataExploration.cpp...
+	Attempting to open titanic_project.csv
+		titanic_project.csv was opened successfully.
+	Reading titanic_project.csv
+"","pclass","survived","sex","age"
+		titanic_project.csv was read successfully.
+	Closing file titanic_project.csv.

@@ -1,0 +1,45 @@
+Sat Mar 04 00:17:34 2023
+
+	Count of total passengers: 1046
+	Male passengers: 658
+	Female passengers: 388
+Percentages of total passengers:
+	% of male passengers: 62.9063
+	% of female passengers: 37.0937
+Count of passengers (from train subset): 800
+	Male passengers: 510
+	Female passengers: 290
+Percentages of passengers (from train subset):
+	% of male passengers: 63.75
+	% of female passengers: 36.25
+
+From train subset:
+Count passengers died vs survived based on sex:
+	female and survived: 212
+	female and died: 78
+	male and survived: 100
+	male and died: 410
+Count passengers died vs survived based on passenger class:
+	passenger class 1 and survived: 130
+	passenger class 1 and died: 84
+	passenger class 2 and survived: 82
+	passenger class 2 and died: 110
+	passenger class 3 and survived: 100
+	passenger class 3 and died: 294
+Conditional distributions for...
+	female and survived: 0.679487
+	female and died: 0.159836
+	male and survived: 0.320513
+	male and died: 0.840164
+Conditional distributions for...
+	passenger class 1 and survived: 0.416667
+	passenger class 1 and died: 0.172131
+	passenger class 2 and survived: 0.262821
+	passenger class 2 and died: 0.22541
+	passenger class 3 and survived: 0.320513
+	passenger class 3 and died: 0.602459
+Conditional distributions for...
+	Age (Survived) (Mean): 28.8261
+	Age (Survived) (Standard Deviation): 14.4622
+	Age (Died) (Mean): 30.4182
+	Age (Died) (Standard Deviation): 14.3231
