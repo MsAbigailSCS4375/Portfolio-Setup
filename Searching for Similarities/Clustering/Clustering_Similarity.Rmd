@@ -1,0 +1,183 @@
+---
+  title: "Similarity Algorithms: Clustering File"
+  author: "David Teran" 
+  editor_options:
+    markdown: 
+      wrap: 72
+  markdown:
+    
+    wrap: 72
+  output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Created by David Teran on March 20, 2023
+
+##Clustering
+
+This R Notebook will be using a dataset with more than 10K rows of data and will implement two clustering algorithms, grouping data into similar groups. The two clustering methods implemented will be k-means and hierarchical clustering, to which a model-based approach for the two methods will be taken for clustering the dataset. 
+
+The dataset used will be the results of an airline passenger customer satisfaction survey, where customers rate the airline based on several different factors. This dataset can be found in Kaggle over at:https://www.kaggle.com/datasets/teejmahal20/airline-passenger-satisfaction?select=train.csv. 
+
+The first clustering algorithm to be used will be the k-means clustering, which identifies the centers and groups data based on how close it is to a center. We will be using 'k' random observations to be the centroids and group the observations, repeating until convergence. 
+
+First, reading in the dataset to be used for clustering algorithms and prepare it by cleaning it from any NA or 0 values.
+```{r}
+#Read the dataset in
+current_path = rstudioapi::getActiveDocumentContext()$path
+setwd(dirname(current_path ))
+dataClust1 <- read.csv("train.csv")
+dataClust2 <- read.csv("test.csv")
+dataClust <- rbind(dataClust1, dataClust2)
+#Drop unneeded Columns
+dataClust <- dataClust[,-1:-2]
+#Preparing Data
+head(dataClust)
+data(dataClust)
+names(dataClust)
+#Convert data columns to numeric data
+dataClust$Gender <- ifelse(dataClust$Gender=="Female", 1, 0)
+dataClust$Customer.Type <- ifelse(dataClust$Customer.Type=="Local Customer", 1, 0)
+dataClust$Type.of.Travel <- ifelse(dataClust$Type.of.Travel=="Business travel", 1, 0)
+dataClust$Class[dataClust$Class == "Eco"] <- 0
+dataClust$Class[dataClust$Class == "Eco Plus"] <- 1
+dataClust$Class[dataClust$Class == "Business"] <- 2
+dataClust$satisfaction<-as.factor(dataClust$satisfaction)
+#Remove 0's
+dataClust <- na.omit(dataClust) #Clear missing data
+dataClust <- dataClust[!(is.na(dataClust$Arrival.Delay.in.Minutes)),]
+#Normalizing Data
+dataClust$Class <- as.numeric(dataClust$Class) 
+dataClust$satisfaction <- as.numeric(dataClust$satisfaction)
+dataClust <- dataClust[!(dataClust$Gate.location==0),]
+dataClust <- dataClust[!(dataClust$Food.and.drink==0),]
+dataClust <- dataClust[!(dataClust$Online.boarding==0),]
+dataClust <- dataClust[!(dataClust$Seat.comfort==0),]
+dataClust <- dataClust[!(dataClust$Inflight.entertainment==0),]
+dataClust <- dataClust[!(dataClust$On.board.service==0),]
+dataClust <- dataClust[!(dataClust$Leg.room.service==0),]
+dataClust <- dataClust[!(dataClust$Checkin.service==0),]
+dataClust <- dataClust[!(dataClust$Inflight.service==0),]
+dataClust <- dataClust[!(dataClust$Cleanliness==0),]
+dataClust <- dataClust[!(dataClust$Departure.Arrival.time.convenient==0),] 
+```
+##K-means Clustering
+
+The optimal number of k clusters must be determined in order to obtain a good result. To find 'k', the within sum of squares is used to determine the number of clusters to set for obtaining the optimal model.The withinss is then plotted onto a graph to see what value is k to produce the most optimal model for k-means.
+
+```{r}
+#Determine optimal value for k using within sum of squares
+wsplot <- function(data, nc=15, seed=1234){
+  wss <- (nrow(data)-1)*sum(apply(data,2,var))
+  for (i in 2:nc){
+    set.seed(seed)
+    wss[i] <- sum(kmeans(data,centers=i)$withinss)
+  }
+  plot(1:nc, wss, type="b", xlab="Number of Clusters",
+       ylab="Within groups sum of squares")
+}
+wsplot(dataClust)
+```
+With the within sum of squares, the number of clusters that will provide the best optimal model is where the "elbow" of the graph is. The drop from k=1 to k=2 is large compared to k=3 and onwards. This means that the number of clusters for k-means is 2. We can also use NbClust to find the best value for k
+
+```{r}
+# library(NbClust)
+# set.seed(1234)
+# nc <- NbClust(test, min.nc=2, max.nc=15, method="kmeans")
+# t <- table(nc$Best.n[1,])
+# t
+# barplot(t, xlab="Number of Clusters", ylab = "Criteria")
+#
+```
+
+ 
+With k now known, the k-means clustering algorithm can be performed.The data will show the cluster sizes, cluster means, cluster vectors, within sum of squares, and available components to use for analysis.
+
+```{r}
+set.seed(1234)
+testClust <- kmeans(dataClust, 2, nstart=25)
+```
+Once the optimal model has been selected, then a model analysis can be done, using the size and the centers of the k-means to cross tabulate to see if we can find an agreement. Then it is possible to quantify the agreement between the value randomly assigned and the cluster by using the Rand index. The closer it is to 1, the greater the agreement. The closer it is to -1, the lower the agreement. However, if the Rand index is closer to 0, it means the clustering was done randomly.
+
+```{r}
+#Show the size and centers of the clusters of data
+testClust$size
+testClust$centers
+testClust$withinss #within sum of squares
+testClust$tot.withinss #within sum of squares by cluster
+```
+
+We can also try a small plot graph comparing certain columns of data to see if the clusters form
+```{r}
+plot(dataClust$Flight.Distance, dataClust$Departure.Arrival.time.convenient, pch=25, bg=c("red","blue")
+[unclass(testClust$cluster)], main="Airline Passenger Satisfaction Data")
+```
+
+Now to obtain the Rand Index for the k-means clustering.
+```{r}
+aggregate(dataClust, by=list(cluster=testClust$cluster), mean)
+ct.km <- table(dataClust$Departure.Arrival.time.convenient, testClust$cluster)
+#Quantify Agreement
+library(flexclust)
+randIndex(ct.km)
+```
+
+##Hierarchical Clustering
+
+With clustering using the k-means algorithm, we can now move on to implementing a hierarchical clustering algorithm. Hierarchical clustering differs in that it does not require k to be specified beforehand. The other difference is that it creates a dendogram of the clustering of data. 
+
+For this dataset, the data must be split into subsets in order to perform the hierarchical clustering algorithm, since it is a greedy algorithm and will bog down with large datasets. There are 3 different ways to measure distance between clusters.With the same dataset, the euclidean distances will be calculated using average-linkage.
+
+```{r}
+#Partition Data
+set.seed(1234)
+i <- sample(1:nrow(dataClust), nrow(dataClust)*0.1, replace=FALSE)
+hier1 <- dataClust[i,]
+hier2 <- dataClust[-i,]
+d <- dist(hier1)
+fit.average <- hclust(d, method="average")
+plot(fit.average, hang=-1, cex=.001,
+     main="Hierarchical Clustering")
+```
+
+The height will indicate the criterion value for where the clusters are joined. From here we can then begin cutting the dendogram and determine which cuts can provide the best Rand value.
+
+```{r}
+for (c in 2:9){
+ cluster_cut <- cutree(fit.average, c)
+ table_cut <- table(cluster_cut, hier1$Departure.Arrival.time.convenient)
+ print(table_cut)
+ ri <- randIndex(table_cut)
+ print(paste("cut=", c, "Rand index = ", ri))
+}
+```
+Running the cuts reveal that the best cut is at 9, meaning cl
+
+##Model-based Clustering
+Both k-means and hierarchical approaches to clustering are done, but we can also do a model-based approach to identify the most likely number of clusters and optimal model using maximum likelihood estimation and Bayes criteria. The model is selected based on the largest BIC (Bayes Information Criterion) for Expectation-Maximization.
+
+We can then use Mclust function to select the optimal model and plot the results for which model has the largest BIC and the number of clusters. However the data must be partitioned as well since the model-based algorithm can also take longer with large datasets.
+
+```{r}
+# Model Based Clustering
+library(mclust)
+fitBIC <-mclustBIC(hier1)
+plot(fitBIC, what = "BIC") # plot results
+summary(fitBIC) # display the best model
+fitClass <-Mclust(hier1[,1:5])
+plot(fitClass, what = "classification") # plot results
+summary(fitClass, parameters=TRUE) # display the best model
+fitClass <-Mclust(hier1[,6:10])
+plot(fitClass, what = "classification") # plot results
+summary(fitClass, parameters=TRUE) # display the best model
+fitClass <-Mclust(hier1[,11:15])
+plot(fitClass, what = "classification") # plot results
+summary(fitClass, parameters=TRUE) # display the best model
+fitClass <-Mclust(hier1[,16:23])
+plot(fitClass, what = "classification") # plot results
+summary(fitClass, parameters=TRUE) # display the best model
+```
+##Conclusion
+All 3 clustering algorithms gave varied results based on the data. For k-means, the results showed that a model of 2 clusters was the most optimal model for this data set, but had a Rand index close to 0, meaning that the clustering is more randomized. The hierarchical clustering algorithm, though it is a greedy algorithm, had shown that the data with 9 clusters is the more optimal model to go with, though the rand index for that cut is still closer to 0. Lastly, the model-based algorithm, using Mclust showed that a model with 9 clusters is the most optimal, having a higher BIC out of the 9 components, the model indicating that it will be a spherical, uneven multivariate mixture. 
